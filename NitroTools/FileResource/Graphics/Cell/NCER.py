@@ -4,14 +4,16 @@ import struct
 import json
 from NitroTools.FileResource.File import File
 
+
 class NCER(File):
-    '''
+    """
     Load an NCER (for Nitro CEll Resource) file, which contains frames data of an animation.
     Associated with an NCGR and an NCLR files, it creates several frames that are rendered by an NANR file.
 
-    :params inp: The input can either be an active EndianBinaryReader (if you want to read from an opened file), 
+    :params inp: The input can either be an active EndianBinaryReader (if you want to read from an opened file),
         a bytes or bytearray stream, or a path to a file in your system.
-    '''
+    """
+
     def read(self, f):
         self.magic = f.check_magic(b"RECN")
         self.unk = f.read_UInt32()
@@ -47,11 +49,13 @@ class NCER(File):
 
         return stream.getvalue()
 
+
 class NCER_CEBK:
-    '''
+    """
     NCER mandatory section, for CEll BanK. Contains the data to create the different cells/frames.
-    '''
-    def __init__(self, f : EndianBinaryReader):
+    """
+
+    def __init__(self, f: EndianBinaryReader):
         pos = f.tell()
         self.magic = f.check_magic(b"KBEC")
         self.section_size = f.read_UInt32()
@@ -71,31 +75,35 @@ class NCER_CEBK:
         if self.partition_data_offset:
             self.partition_start = f.read_UInt32()
             self.partition_size = f.read_UInt32()
-            
+
         f.seek(pos + self.section_size)
 
-    def to_json(self, json_filepath : str):
+    def to_json(self, json_filepath: str):
         cells_json = []
         for cell in self.cells:
             oams = []
             for oam in cell.OAM_data_list:
-                oams.append({
-                    "Color depth" : oam.color_depth,
-                    "Mosaic" : oam.mosaic_flag,
-                    "Obj mode" : oam.obj_mode,
-                    "Obj flag" : oam.obj_flag,
-                    "rot_scale_flag" : oam.rot_scale_flag,
-                    "Vertical flip" : oam.ver_flip,
-                    "Horizontal flip" : oam.hor_flip,
-                    "Position" : [oam.x_pos, oam.y_pos],
-                    "Size" : oam.size,
-                    "Palette index" : oam.pal_idx,
-                    "Priority" : oam.priority,
-                    "Tile index" : oam.tile_index
-                })
+                oams.append(
+                    {
+                        "Color depth": oam.color_depth,
+                        "Mosaic": oam.mosaic_flag,
+                        "Obj mode": oam.obj_mode,
+                        "Obj flag": oam.obj_flag,
+                        "rot_scale_flag": oam.rot_scale_flag,
+                        "Vertical flip": oam.ver_flip,
+                        "Horizontal flip": oam.hor_flip,
+                        "Position": [oam.x_pos, oam.y_pos],
+                        "Size": oam.size,
+                        "Palette index": oam.pal_idx,
+                        "Priority": oam.priority,
+                        "Tile index": oam.tile_index,
+                    }
+                )
             cells_json.append(oams)
-        out = {"banks" : cells_json}
-        json.dump(out, open(json_filepath, mode='w', encoding='utf-8', newline=''), indent=3)
+        out = {"banks": cells_json}
+        json.dump(
+            out, open(json_filepath, mode="w", encoding="utf-8", newline=""), indent=3
+        )
 
     def to_bytes(self):
         stream = EndianBinaryStreamWriter()
@@ -134,11 +142,13 @@ class NCER_CEBK:
 
         return stream.getvalue()
 
+
 class CEBK_Cell:
-    '''
+    """
     A CEBK Cell (Animation frame)
-    '''
-    def __init__(self,f : EndianBinaryReader, extended_flag : bool):
+    """
+
+    def __init__(self, f: EndianBinaryReader, extended_flag: bool):
         self.extended_flag = extended_flag
         self.OAM_count = f.read_UInt16()
         self.unk = f.read_UInt16()
@@ -149,14 +159,16 @@ class CEBK_Cell:
             self.xmin = f.read_Int16()
             self.ymin = f.read_Int16()
 
-    def read_OAM_data(self,f : EndianBinaryReader):
+    def read_OAM_data(self, f: EndianBinaryReader):
         self.OAM_data_list = [OAMData(f) for _ in range(self.OAM_count)]
 
+
 class OAMData:
-    '''
+    """
     An NCER OAM data.
-    '''
-    def __init__(self, f : EndianBinaryReader):
+    """
+
+    def __init__(self, f: EndianBinaryReader):
         chunk0 = f.read_UInt16()
         self.size_type = chunk0 >> 14
         self.color_depth = chunk0 >> 13 & 1
@@ -164,8 +176,8 @@ class OAMData:
         self.obj_mode = chunk0 >> 10 & 0b11
         self.obj_flag = chunk0 >> 9 & 1
         self.rot_scale_flag = chunk0 >> 8 & 1
-        pos_bytes = struct.pack('<B', chunk0 & (2**8 - 1))
-        self.y_pos = struct.unpack('<b', pos_bytes)[0]
+        pos_bytes = struct.pack("<B", chunk0 & (2**8 - 1))
+        self.y_pos = struct.unpack("<b", pos_bytes)[0]
 
         chunk1 = f.read_UInt16()
         self.size_info = chunk1 >> 14
@@ -182,9 +194,9 @@ class OAMData:
         self.priority = chunk2 >> 10 & 0b11
         self.tile_index = chunk2 & (2**10 - 1)
 
-        self.size = OAM_SIZE_DICT[(self.size_type,self.size_info)]
+        self.size = OAM_SIZE_DICT[(self.size_type, self.size_info)]
 
-    def build_oam(self, tiles : list[Tile], tile_offset_start : int):
+    def build_oam(self, tiles: list[Tile], tile_offset_start: int):
         bit_depth = tiles[0].bit_depth
         linear = tiles[0].linear
         if bit_depth == 4:
@@ -194,15 +206,29 @@ class OAMData:
         self.oam = OAM(self.size, tiles[tile_offset:], self.pal_idx, linear)
 
     def to_bytes(self):
-        chunk0 = (self.size_type << 14) + (self.color_depth << 13) + (self.mosaic_flag << 12) + (self.obj_mode << 10)
-        chunk0 += (self.obj_flag << 9) + (self.rot_scale_flag << 8) + struct.unpack('<B', struct.pack('<b', self.y_pos))[0]
+        chunk0 = (
+            (self.size_type << 14)
+            + (self.color_depth << 13)
+            + (self.mosaic_flag << 12)
+            + (self.obj_mode << 10)
+        )
+        chunk0 += (
+            (self.obj_flag << 9)
+            + (self.rot_scale_flag << 8)
+            + struct.unpack("<B", struct.pack("<b", self.y_pos))[0]
+        )
 
         if self.x_pos < 0:
             x_pos_val = self.x_pos + 0x200
         else:
             x_pos_val = self.x_pos
 
-        chunk1 = (self.size_info << 14) + (self.ver_flip << 13) + (self.hor_flip << 12) + x_pos_val
+        chunk1 = (
+            (self.size_info << 14)
+            + (self.ver_flip << 13)
+            + (self.hor_flip << 12)
+            + x_pos_val
+        )
 
         chunk2 = (self.pal_idx << 12) + (self.priority << 10) + self.tile_index
 
@@ -213,12 +239,14 @@ class OAMData:
 
         return stream.getvalue()
 
+
 class NCER_LABL:
-    '''
+    """
     NCER optional section, for LABeL. Contains different labels, but it's (likely) one label per animation, not per cell.
     That means there is less labels than cells in the NCER, and that they are not very useful per se.
-    '''
-    def __init__(self,f : EndianBinaryReader, cellbank_count : int):
+    """
+
+    def __init__(self, f: EndianBinaryReader, cellbank_count: int):
         pos = f.tell()
         self.cell_names_offset = []
         self.cell_names = []
@@ -245,21 +273,23 @@ class NCER_LABL:
         name_offset = 0
         for name in self.cell_names:
             stream.write_UInt32(name_offset)
-            name_offset += (len(name) + 1)
+            name_offset += len(name) + 1
         for name in self.cell_names:
-            stream.write(name + b'\x00')
-        
+            stream.write(name + b"\x00")
+
         self.section_size = stream.tell()
         stream.seek(4)
         stream.write_UInt32(self.section_size)
 
         return stream.getvalue()
 
+
 class NCER_UEXT:
-    '''
+    """
     NCER optional section, for U??? EXTernal. Unknown purpose.
-    '''
-    def __init__(self, f : EndianBinaryReader):
+    """
+
+    def __init__(self, f: EndianBinaryReader):
         self.magic = f.check_magic(b"TXEU")
         self.section_size = f.read_UInt32()
         self.unk = f.read_UInt32()
@@ -272,16 +302,16 @@ class NCER_UEXT:
 
 
 OAM_SIZE_DICT = {
-            (0,0):(8,8),
-            (0,1):(16,16),
-            (0,2):(32,32),
-            (0,3):(64,64),
-            (1,0):(16,8),
-            (1,1):(32,8),
-            (1,2):(32,16),
-            (1,3):(64,32),
-            (2,0):(8,16),
-            (2,1):(8,32),
-            (2,2):(16,32),
-            (2,3):(32,64)
-            }
+    (0, 0): (8, 8),
+    (0, 1): (16, 16),
+    (0, 2): (32, 32),
+    (0, 3): (64, 64),
+    (1, 0): (16, 8),
+    (1, 1): (32, 8),
+    (1, 2): (32, 16),
+    (1, 3): (64, 32),
+    (2, 0): (8, 16),
+    (2, 1): (8, 32),
+    (2, 2): (16, 32),
+    (2, 3): (32, 64),
+}

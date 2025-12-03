@@ -1,4 +1,4 @@
-'''
+"""
 Copyright © magical
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -20,17 +20,19 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 source: https://github.com/magical/nlzss
-'''
+"""
 
 from struct import pack
 from collections import defaultdict
 from operator import itemgetter
 from NitroTools.FileSystem import EndianBinaryStreamReader
 
+
 class DecompressionError(ValueError):
     pass
 
-def get_bits(byte : int):
+
+def get_bits(byte: int):
     yield (byte >> 7) & 1
     yield (byte >> 6) & 1
     yield (byte >> 5) & 1
@@ -40,10 +42,11 @@ def get_bits(byte : int):
     yield (byte >> 1) & 1
     yield byte & 1
 
-def decompress_raw_lz10(in_data : bytes, decompressed_size : int):
+
+def decompress_raw_lz10(in_data: bytes, decompressed_size: int):
     disp_extra = 1
     out_data = bytearray()
-    stream = EndianBinaryStreamReader(in_data, endianness='big')
+    stream = EndianBinaryStreamReader(in_data, endianness="big")
 
     while len(out_data) < decompressed_size:
 
@@ -54,8 +57,8 @@ def decompress_raw_lz10(in_data : bytes, decompressed_size : int):
 
             elif flag == 1:
                 sh = stream.read_UInt16()
-                count = (sh >> 0xc) + 3
-                disp = (sh & 0xfff) + disp_extra
+                count = (sh >> 0xC) + 3
+                disp = (sh & 0xFFF) + disp_extra
 
                 for _ in range(count):
                     out_data.append(out_data[-disp])
@@ -70,14 +73,16 @@ def decompress_raw_lz10(in_data : bytes, decompressed_size : int):
 
     return out_data
 
-def decompress_lz10(in_data : bytes) -> bytearray:
+
+def decompress_lz10(in_data: bytes) -> bytearray:
     stream = EndianBinaryStreamReader(in_data)
     info = stream.read_UInt32()
-    magic = info & 0xff
+    magic = info & 0xFF
     decompressed_size = info >> 8
     if magic != 0x10:
         raise DecompressionError(f"Invalid magic, expected 0x10, got {hex(magic)}")
     return decompress_raw_lz10(in_data[4:], decompressed_size)
+
 
 class SlidingWindow:
     # The size of the sliding window
@@ -143,12 +148,12 @@ class SlidingWindow:
             matchlen = self.match(i, self.index)
             if matchlen >= match_min:
                 disp = self.index - i
-                #assert self.index - disp >= 0
-                #assert self.disp_min <= disp < self.size + self.disp_min
+                # assert self.index - disp >= 0
+                # assert self.disp_min <= disp < self.size + self.disp_min
                 if self.disp_min <= disp:
                     counts.append((matchlen, -disp))
                     if matchlen >= match_max:
-                        #assert matchlen == match_max
+                        # assert matchlen == match_max
                         return counts[-1]
 
         if counts:
@@ -172,11 +177,13 @@ class SlidingWindow:
                 break
         return matchlen
 
+
 class NLZ10Window(SlidingWindow):
     size = 4096
 
     match_min = 3
-    match_max = 3 + 0xf
+    match_max = 3 + 0xF
+
 
 def packflags(flags):
     n = 0
@@ -189,6 +196,7 @@ def packflags(flags):
             pass
     return n
 
+
 def chunkit(it, n):
     buf = []
     for x in it:
@@ -199,7 +207,8 @@ def chunkit(it, n):
     if buf:
         yield buf
 
-def _compress(in_data : bytes, windowclass=NLZ10Window):
+
+def _compress(in_data: bytes, windowclass=NLZ10Window):
     """Generates a stream of tokens. Either a byte (int) or a tuple of (count,
     displacement)."""
 
@@ -212,7 +221,7 @@ def _compress(in_data : bytes, windowclass=NLZ10Window):
         match = window.search()
         if match:
             yield match
-            #if match[1] == -283:
+            # if match[1] == -283:
             #    raise Exception(match, i)
             window.advance(match[0])
             i += match[0]
@@ -221,7 +230,8 @@ def _compress(in_data : bytes, windowclass=NLZ10Window):
             window.next()
             i += 1
 
-def compress_raw_lz10(in_data : bytes):
+
+def compress_raw_lz10(in_data: bytes):
     out = bytearray()
     # body
     length = 0
@@ -243,11 +253,14 @@ def compress_raw_lz10(in_data : bytes):
         length += 1
         length += sum(2 if f else 1 for f in flags)
 
-  #  padding = 4 - (length % 4 or 4)
-   # if padding:
+    #  padding = 4 - (length % 4 or 4)
+    # if padding:
     #    out += (b'\xff' * padding)
 
     return out
 
-def compress_lz10(in_data : bytes):
-    return bytearray(pack("<L", (len(in_data) << 8) + 0x10)) + compress_raw_lz10(in_data)
+
+def compress_lz10(in_data: bytes):
+    return bytearray(pack("<L", (len(in_data) << 8) + 0x10)) + compress_raw_lz10(
+        in_data
+    )

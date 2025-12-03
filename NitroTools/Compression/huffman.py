@@ -1,34 +1,40 @@
 from NitroTools.FileSystem import EndianBinaryStreamReader, EndianBinaryStreamWriter
 from struct import pack
 
+
 class DecompressionError(ValueError):
     pass
 
-def decompress_huffman4bits(in_data : bytes) -> bytearray:
+
+def decompress_huffman4bits(in_data: bytes) -> bytearray:
     stream = EndianBinaryStreamReader(in_data)
     info = stream.read_UInt32()
-    magic = info & 0xff
+    magic = info & 0xFF
     decompressed_size = info >> 8
     if magic != 0x24:
         raise DecompressionError(f"Invalid magic, expected 0x24, got {hex(magic)}")
     return decompress_raw_huffman4bits(in_data[4:], decompressed_size)
 
-def decompress_huffman8bits(in_data : bytes) -> bytearray:
+
+def decompress_huffman8bits(in_data: bytes) -> bytearray:
     stream = EndianBinaryStreamReader(in_data)
     info = stream.read_UInt32()
-    magic = info & 0xff
+    magic = info & 0xFF
     decompressed_size = info >> 8
     if magic != 0x28:
         raise DecompressionError(f"Invalid magic, expected 0x28, got {hex(magic)}")
     return decompress_raw_huffman8bits(in_data[4:], decompressed_size)
 
-def decompress_raw_huffman4bits(in_data : bytes, decompressed_size : int):
+
+def decompress_raw_huffman4bits(in_data: bytes, decompressed_size: int):
     return decompress_raw_huffman(in_data, decompressed_size, 4)
 
-def decompress_raw_huffman8bits(in_data : bytes, decompressed_size : int):
+
+def decompress_raw_huffman8bits(in_data: bytes, decompressed_size: int):
     return decompress_raw_huffman(in_data, decompressed_size, 8)
 
-def decompress_raw_huffman(in_data : bytes, decompressed_size : int, num_bits : int):
+
+def decompress_raw_huffman(in_data: bytes, decompressed_size: int, num_bits: int):
     out_data = bytearray(decompressed_size)
     stream = EndianBinaryStreamReader(in_data)
     mask = 0
@@ -57,7 +63,7 @@ def decompress_raw_huffman(in_data : bytes, decompressed_size : int, num_bits : 
             pos = in_data[next + 1]
 
         if ch:
-            out_data[out_pos] |= (pos << nbits)
+            out_data[out_pos] |= pos << nbits
             nbits = (nbits + num_bits) & 7
             if nbits == 0:
                 out_pos += 1
@@ -66,32 +72,36 @@ def decompress_raw_huffman(in_data : bytes, decompressed_size : int, num_bits : 
 
     return out_data
 
+
 class HuffmanNode:
-    symbol : int
-    weight : int
+    symbol: int
+    weight: int
     leafs = 1
     parent = None
     left = None
     right = None
 
+
 class HuffmanCode:
-    nbits : int
-    codework : int
+    nbits: int
+    codework: int
+
 
 HUF_NEXT = 0x3F
 HUF_LCHAR = 0x80
 HUF_RCHAR = 0x40
 
-def compress_raw_huffman(in_data : bytes, num_bits : int):
 
-    def CreateCodeBranch(root : HuffmanNode, p : int, q : int):
+def compress_raw_huffman(in_data: bytes, num_bits: int):
+
+    def CreateCodeBranch(root: HuffmanNode, p: int, q: int):
         if root.leafs <= HUF_NEXT + 1:
-            stack : list[HuffmanNode] = [None] * (2 * root.leafs)
+            stack: list[HuffmanNode] = [None] * (2 * root.leafs)
             s = r = 0
             stack[r] = root
             r += 1
 
-            while (s < r):
+            while s < r:
                 node = stack[s]
                 s += 1
                 if node.leafs == 1:
@@ -105,8 +115,10 @@ def compress_raw_huffman(in_data : bytes, num_bits : int):
 
                 else:
                     mask = 0
-                    if node.left.leafs == 1: mask |= HUF_LCHAR
-                    if node.right.leafs == 1: mask |= HUF_RCHAR
+                    if node.left.leafs == 1:
+                        mask |= HUF_LCHAR
+                    if node.right.leafs == 1:
+                        mask |= HUF_RCHAR
                     if s == 1:
                         code_tree[p] = (r - s) >> 1
                         code_mask[p] = mask
@@ -115,12 +127,14 @@ def compress_raw_huffman(in_data : bytes, num_bits : int):
                         code_mask[q] = mask
                         q += 1
                     stack[r] = node.left
-                    stack[r+1] = node.right
+                    stack[r + 1] = node.right
                     r += 2
         else:
             mask = 0
-            if root.left.leafs == 1: mask |= HUF_LCHAR
-            if root.right.leafs == 1: mask |= HUF_RCHAR
+            if root.left.leafs == 1:
+                mask |= HUF_LCHAR
+            if root.right.leafs == 1:
+                mask |= HUF_RCHAR
             code_tree[p] = 0
             code_mask[p] = mask
             if root.left.leafs <= root.right.leafs:
@@ -145,11 +159,11 @@ def compress_raw_huffman(in_data : bytes, num_bits : int):
     for elem in freqs:
         if elem:
             num_leafs += 1
-    
+
     if num_leafs < 2:
         if num_leafs == 1:
             pass
-        
+
         num_leafs += 1
         while num_leafs < 2:
             for i in range(max_symbols):
@@ -157,7 +171,7 @@ def compress_raw_huffman(in_data : bytes, num_bits : int):
                     freqs[i] = 2
                     break
             num_leafs += 1
-    
+
     num_nodes = (num_leafs << 1) - 1
     tree = [HuffmanNode()] * num_nodes
     num_node = 0
@@ -181,7 +195,7 @@ def compress_raw_huffman(in_data : bytes, num_bits : int):
                     right = left
                     lweight = tree[i].weight
                     left = tree[i]
-                
+
                 elif not rweight or tree[i].weight < rweight:
                     rweight = tree[i].weight
                     right = tree[i]
@@ -210,12 +224,12 @@ def compress_raw_huffman(in_data : bytes, num_bits : int):
     max = (code_tree[0] + 1) << 1
 
     i = 1
-    while (i < max):
+    while i < max:
         if (code_mask[i] != 0xFF) and (code_tree[i] > HUF_NEXT):
             if (i & 1) and (code_tree[i - 1] == HUF_NEXT):
                 i -= 1
                 inc = 1
-            elif (not (i & 1)) and (code_tree[i+1] == HUF_NEXT):
+            elif (not (i & 1)) and (code_tree[i + 1] == HUF_NEXT):
                 i += 1
                 inc = 1
             else:
@@ -242,26 +256,31 @@ def compress_raw_huffman(in_data : bytes, num_bits : int):
             for j in range(i + 1, l0):
                 if code_mask[j] != 0xFF:
                     k = (j >> 1) + 1 + code_tree[j]
-                    if k >= n0 and k < n1: code_tree[j] += 1
+                    if k >= n0 and k < n1:
+                        code_tree[j] += 1
 
-            if code_mask[l0    ] != 0xFF: code_tree[l0    ] += inc
-            if code_mask[l0 + 1] != 0xFF: code_tree[l0 + 1] += inc
+            if code_mask[l0] != 0xFF:
+                code_tree[l0] += inc
+            if code_mask[l0 + 1] != 0xFF:
+                code_tree[l0 + 1] += inc
 
             for j in range(l0 + 2, l1 + 2):
                 if code_mask[j] != 0xFF:
                     k = (j >> 1) + 1 + code_tree[j]
-                    if (k > n1): code_tree[j] -= 1
-            
+                    if k > n1:
+                        code_tree[j] -= 1
+
             i = (i | 1) - 2
         i += 1
 
     i = (code_tree[0] + 1) << 1
     i -= 1
     while i:
-        if (code_mask[i] != 0xFF): code_tree[i] |= code_mask[i]
+        if code_mask[i] != 0xFF:
+            code_tree[i] |= code_mask[i]
         i -= 1
 
-    codes : list[HuffmanCode] = [None] * max_symbols
+    codes: list[HuffmanCode] = [None] * max_symbols
     scode = [0] * 100
 
     for i in range(num_leafs):
@@ -269,21 +288,25 @@ def compress_raw_huffman(in_data : bytes, num_bits : int):
         symbol = node.symbol
         nbits = 0
         while node.parent is not None:
-            if node.parent.left == node: scode[nbits] = 0
-            else: scode[nbits] = 1
+            if node.parent.left == node:
+                scode[nbits] = 0
+            else:
+                scode[nbits] = 1
             nbits += 1
             node = node.parent
-                
+
         maxbytes = (nbits + 7) >> 3
         code = HuffmanCode()
         codes[symbol] = code
         code.nbits = nbits
         code.codework = [None] * maxbytes
-        for j in range(maxbytes): code.codework[j] = 0
+        for j in range(maxbytes):
+            code.codework[j] = 0
         mask = 0x80
         j = 0
         for nbit in range(nbits, 0, -1):
-            if scode[nbit - 1]: code.codework[j] |= mask
+            if scode[nbit - 1]:
+                code.codework[j] |= mask
             mask >>= 1
             if not mask:
                 mask = 0x80
@@ -305,10 +328,12 @@ def compress_raw_huffman(in_data : bytes, num_bits : int):
             for _ in range(length, 0, -1):
                 mask4 >>= 1
                 if not mask4:
-                    if pk4 is not None: out.write_UInt32(pk4)
+                    if pk4 is not None:
+                        out.write_UInt32(pk4)
                     mask4 = 0x80_00_00_00
                     pk4 = 0
-                if cwork[cwork_idx] & mask: pk4 |= mask4
+                if cwork[cwork_idx] & mask:
+                    pk4 |= mask4
                 mask >>= 1
                 if not mask:
                     mask = 0x80
@@ -318,14 +343,22 @@ def compress_raw_huffman(in_data : bytes, num_bits : int):
     out.write_UInt32(pk4)
     return out.getvalue()
 
-def compress_raw_huffman4bits(in_data : bytes):
+
+def compress_raw_huffman4bits(in_data: bytes):
     return compress_raw_huffman(in_data, 4)
 
-def compress_raw_huffman8bits(in_data : bytes):
+
+def compress_raw_huffman8bits(in_data: bytes):
     return compress_raw_huffman(in_data, 8)
 
-def compress_huffman4bits(in_data : bytes):
-    return bytearray(pack("<L", (len(in_data) << 8) + 0x24)) + compress_raw_huffman4bits(in_data)
 
-def compress_huffman8bits(in_data : bytes):
-    return bytearray(pack("<L", (len(in_data) << 8) + 0x28)) + compress_raw_huffman8bits(in_data)
+def compress_huffman4bits(in_data: bytes):
+    return bytearray(
+        pack("<L", (len(in_data) << 8) + 0x24)
+    ) + compress_raw_huffman4bits(in_data)
+
+
+def compress_huffman8bits(in_data: bytes):
+    return bytearray(
+        pack("<L", (len(in_data) << 8) + 0x28)
+    ) + compress_raw_huffman8bits(in_data)
