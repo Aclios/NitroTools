@@ -51,6 +51,7 @@ class EndianBinaryReader:
             raise Exception(
                 f"Error: Invalid magic. Expected {str(magic)}, read {str(check)}"
             )
+        return magic
 
     def read_string_until_null(self) -> bytes:
         data = b""

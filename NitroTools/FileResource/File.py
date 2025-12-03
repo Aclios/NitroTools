@@ -4,25 +4,33 @@ from NitroTools.FileSystem import (
     EndianBinaryStreamReader,
 )
 from pathlib import Path
+from NitroTools.Compression import decompress, compress
+
+FileInput = EndianBinaryReader | bytes | bytearray | str | Path
 
 
 class File:
-    def __init__(self, inp: EndianBinaryReader | bytes | bytearray | str | Path):
+    def __init__(self, inp: FileInput, no_decompress=False):
+        self.compression = None
         if isinstance(inp, (str, Path)):
-            with EndianBinaryFileReader(inp) as f:
-                self.read(f)
+            data = EndianBinaryFileReader(inp).read()
 
         elif isinstance(inp, EndianBinaryReader):
-            self.read(inp)
+            data = inp.read()
 
         elif isinstance(inp, (bytes, bytearray)):
-            stream = EndianBinaryStreamReader(inp)
-            self.read(stream)
+            data = inp
 
         else:
-            raise Exception(
-                "Invalid input. Expected either str, Path, bytes, bytearray, or EndianBinaryReader."
-            )
+            raise Exception("Invalid input. Expected a buffer or a filepath.")
+        if not no_decompress:
+            try:
+                data, compression = decompress(data)
+                self.compression = compression
+            except:
+                pass
+
+        self.read(EndianBinaryStreamReader(data))
 
     def read(self, f: EndianBinaryReader):
         """
@@ -40,6 +48,9 @@ class File:
         """
         Write the file to the given filepath.
 
-        :param filepath: The destination filepath, which can be anything supported by the standard ``open`` function.
+        :param filepath: The destination filepath.
         """
-        open(filepath, mode="wb").write(self.to_bytes())
+        if self.compression:
+            open(filepath, mode="wb").write(compress(self.to_bytes(), self.compression))
+        else:
+            open(filepath, mode="wb").write(self.to_bytes())
